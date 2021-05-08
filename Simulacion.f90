@@ -154,7 +154,7 @@ subroutine NearestAtomFCC(X,MAX_DESLOCACION,DIAMETRO_CELDA,POS_ATOMO)
     end do
     ! Agregamos la deslocación aleatoria.
     call random_number(deslocacion)
-    deslocacion = (deslocacion*2 - 1)*(DIAMETRO_CELDA*MAX_DESLOCACION)  ! Cambiamos el dominio de los números aleatorios, de 0-1 a -1,1. Y escalamos.
+    deslocacion = (deslocacion*2 - 1)*(DIAMETRO_CELDA*MAX_DESLOCACION/2)  ! Cambiamos el dominio de los números aleatorios, de 0-1 a -1,1. Y escalamos.
     celdas = celdas + deslocacion
     ! Encontramos el átomo más cercano.
     distancia = sum((celdas(0,:) - X)**2)
@@ -205,7 +205,7 @@ subroutine EspacioInteratomico(X,V,ATOM_RADIUS)
     real*8 :: V_Zero(0:2) = (/0.0_dp , 0.0_dp , 0.0_dp/)
     ! Paso 1: Encontramos la magnitud de la velocidad.
     call distancia2(V,V_Zero,norma_velocidad)
-    dt = 0.15*ATOM_RADIUS / sqrt(norma_velocidad) ! Avanza solo una fracción del radio atómico.
+    dt = 0.25*ATOM_RADIUS / sqrt(norma_velocidad) ! Avanza solo una fracción del radio atómico.
     ! Paso 2: Actualizamos el valor de la posición.
     X = X + dt*V
 end subroutine
@@ -254,7 +254,7 @@ subroutine MetodoNumerico(X,XC,V,Z_A,ATOM_RADIUS,metrica_num_pasos,metrica_num_i
         distancia = sqrt(distancia)
         do while(distancia < Radio_interaccion)
             ! Método de verlet con velocidades explicitas.
-            dt = distancia*1e-09_dp  ! El paso temporal es proporcional a la distancia del atómo con la que está interactuando.
+            dt = distancia*2.5e-09_dp  ! El paso temporal es proporcional a la distancia del atómo con la que está interactuando.
             var_phi = var_a / distancia**3
             A = var_phi*(X-XC)
             ! Actualizamos posición
@@ -323,7 +323,7 @@ subroutine Simulacion(N,CATEGORIA,Z_A,NUM_LAMINAS,ATOM_RADIUS,DIAMETRO_CELDA,&
         V(0:2) = (/0.0_dp , VEL_INICIAL , 0.0_dp /)
         ! Obtenemos la posición aleatoria
         X    = random(i,:)*(DIAMETRO_CELDA + 1/1e12)
-        X(1) = -1.52*ATOM_RADIUS
+        X(1) = -0.9*ATOM_RADIUS
         ! Ciclo principal , se repite hasta salir de la placa.
         do while(abs(X(1)) < ancho_capas)
             !Paso 1 : Encontramos el atomo más cercano de la red cristalina.
@@ -351,7 +351,7 @@ subroutine Simulacion(N,CATEGORIA,Z_A,NUM_LAMINAS,ATOM_RADIUS,DIAMETRO_CELDA,&
         print*, " Num de partículas simuladas : " , N
         print*, " Num de partículas desviadas : " , metrica_num_desviadas
         print*, " "
-        print*, " Nucleos prom Interactuados  : " , metrica_num_interacciones / N
+        print*, " Nucleos prom Interactuados  : " , metrica_num_interacciones / metrica_num_desviadas
         print*, " Pasos   prom efectuados     : " , metrica_num_pasos         / N
     end if 
 endsubroutine
@@ -367,15 +367,15 @@ end subroutine
 
 program main
     integer :: N  = 3000
-    integer :: CATEGORIA = 3
+    integer :: CATEGORIA = 1
     integer :: Z_A             = 79
     real*8  :: NUM_LAMINAS     = 1
     real*8  :: ATOM_RADIUS     = 1.44e-10
     real*8  :: DIAMETRO_CELDA  = 4.07e-10
     real*8  :: VEL_INICIAL     = 1.57e7
-    real*8  :: MAX_DESLOCACION = 0.4
+    real*8  :: MAX_DESLOCACION = 0.8
     integer :: metrica_num_desviadas
-    Character(len=40) :: FILE_NAME = "Prueba_UwU.txt"
+    Character(len=40) :: FILE_NAME = "Prueba.txt"
     logical :: verbose = .TRUE.
     call Simulacion(N,CATEGORIA,Z_A,NUM_LAMINAS,ATOM_RADIUS,DIAMETRO_CELDA,VEL_INICIAL,&
                     MAX_DESLOCACION,metrica_num_desviadas,FILE_NAME,verbose)
