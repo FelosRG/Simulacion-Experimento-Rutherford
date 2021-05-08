@@ -1,4 +1,5 @@
 # Simulacion Experimento Rutherford
+![alt text](https://github.com/FelosRG/Simulacion-Experimento-Rutherford/blob/main/Figuras/Portada.png?raw=true)
 
 Instrucciones:
 
