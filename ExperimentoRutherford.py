@@ -20,7 +20,7 @@ def SimulacionOneCPU(N        ,
                max_deslocacion,
                clave_proceso  ):
     
-    metrica_desviaciones = ExperimentoRutherfordFortran.simulacion(N,
+    metrica_desviaciones,metrica_num_detenidas,metrica_num_rebotadas = ExperimentoRutherfordFortran.simulacion(N,
                                                             categoria      ,
                                                             z_a            ,
                                                             num_laminas    ,
@@ -30,7 +30,7 @@ def SimulacionOneCPU(N        ,
                                                             max_deslocacion,
                                                             f"Resultado{clave_proceso}.txt", 
                                                             verbose=False)
-    return metrica_desviaciones
+    return metrica_desviaciones,metrica_num_detenidas,metrica_num_rebotadas
     
     
     
@@ -59,7 +59,7 @@ def ExperimentoNumerico(N,
     metrica = 0
     if cpus == 1:
         # Corremos en una sola cpu.
-        metrica_desviaciones = SimulacionOneCPU(N              ,
+        metrica_desviaciones,metrica_num_detenidas,metrica_num_rebotadas = SimulacionOneCPU(N              ,
                                                 categoria      ,
                                                 z_a            ,
                                                 num_laminas    ,
