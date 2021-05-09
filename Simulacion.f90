@@ -217,6 +217,7 @@ subroutine MetodoNumerico(X,XC,V,Z_A,ATOM_RADIUS,metrica_num_pasos,metrica_num_i
     ! Valores de entrada y salida.
     real*8 , intent(in) :: XC(0:2)
     integer, intent(in) :: Z_A
+    !real*8 , intent(in) :: VEL_INICIAL
     real*8 , intent(in) :: ATOM_RADIUS
     real*8 , intent(inout) :: X(0:2)
 !f2py intent(in,out) :: X
@@ -235,12 +236,21 @@ subroutine MetodoNumerico(X,XC,V,Z_A,ATOM_RADIUS,metrica_num_pasos,metrica_num_i
     real*8  :: Carga_atomo , Carga_alpha
     real*8  :: dt , distancia
     real*8  :: var_a,var_phi
+    !real*8  :: norma
+    !real*8  :: multiplicador
     ! Más vectores.
     real*8  :: A(0:2)
+    !real*8  :: V_ZERO(0:2) = (/0.0_dp , 0.0_dp , 0.0_dp/)
 
     Radio_interaccion  = 0.75*ATOM_RADIUS
     Radio_interaccion2 = Radio_interaccion**2
     call distancia2(X,XC,distancia)
+
+    ! EXPERIMENTAL : ABSORCION DE ENERGÍA.
+    !call distancia2(V,V_ZERO,norma)
+    !norma = sqrt(norma)
+    !multiplicador = VEL_INICIAL / norma
+
     if (distancia >=  Radio_interaccion2) then
         call EspacioInteratomico(X,V,ATOM_RADIUS)
         metrica_num_pasos = metrica_num_pasos + 1
@@ -254,7 +264,7 @@ subroutine MetodoNumerico(X,XC,V,Z_A,ATOM_RADIUS,metrica_num_pasos,metrica_num_i
         distancia = sqrt(distancia)
         do while(distancia < Radio_interaccion)
             ! Método de verlet con velocidades explicitas.
-            dt = distancia*2.5e-09_dp  ! El paso temporal es proporcional a la distancia del atómo con la que está interactuando.
+            dt = distancia*2.5e-09_dp!*multiplicador ! El paso temporal es proporcional a la distancia del atómo con la que está interactuando.
             var_phi = var_a / distancia**3
             A = var_phi*(X-XC)
             ! Actualizamos posición
@@ -266,6 +276,7 @@ subroutine MetodoNumerico(X,XC,V,Z_A,ATOM_RADIUS,metrica_num_pasos,metrica_num_i
             V  = V  + 0.5*dt*(A + var_phi*(X-XC))
             metrica_num_pasos =  metrica_num_pasos + 1
         end do
+        !V = V*0.998
         ! Termina la subrutina cuando la partícula alfa sale del radio de interacción con el átomo.
     end if
 end subroutine 
@@ -329,7 +340,8 @@ subroutine Simulacion(N,CATEGORIA,Z_A,NUM_LAMINAS,ATOM_RADIUS,DIAMETRO_CELDA,&
             !Paso 1 : Encontramos el atomo más cercano de la red cristalina.
             call NearestAtom(CATEGORIA,X,MAX_DESLOCACION,DIAMETRO_CELDA,POS_ATOMO)
             !Paso 2 : Interacción partícula alpha atomo
-            call MetodoNumerico(X,POS_ATOMO,V,Z_A,ATOM_RADIUS,metrica_num_pasos,metrica_num_interacciones,metrica_desviacion)
+            call MetodoNumerico(X,POS_ATOMO,V,Z_A,ATOM_RADIUS,metrica_num_pasos,metrica_num_interacciones,&
+            metrica_desviacion)
         end do
         ! Normalizamos el vector de velocidad
         call distancia2(V,V_ZERO,norma)
