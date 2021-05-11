@@ -76,6 +76,8 @@ def ExperimentoNumerico(N,
         return Output
     else:
         # Repartimos el trabajo entre las cpus.
+
+
         tamaño_rebanada            = math.floor(N/cpus)
         processes = []
         for i in range(cpus):
@@ -92,7 +94,7 @@ def ExperimentoNumerico(N,
             process.start()
         for process in processes:
             process.join()
-            
+
         # Recopilamos los resultados.
         array_resultado = np.loadtxt(f"Resultado{0}.txt")
         for num_resultado in range(i):
