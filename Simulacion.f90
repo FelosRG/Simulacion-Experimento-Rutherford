@@ -210,19 +210,20 @@ subroutine EspacioInteratomico(X,V,ATOM_RADIUS)
     X = X + dt*V
 end subroutine
 
-subroutine MetodoNumerico(X,XC,V,Z_A,ATOM_RADIUS,metrica_num_pasos,metrica_num_interacciones,metrica_desviacion)
+subroutine MetodoNumerico(X,XC,V,Z_A,ATOM_RADIUS,metrica_num_pasos,metrica_num_interacciones,metrica_desviacion,VEL_INICIAL,norma_v)
     ! Subroutina que se encarga en su totalidad de ejecutar los métodos numéricos.
 
     INTEGER, PARAMETER :: dp = SELECTED_REAL_KIND(15)
     ! Valores de entrada y salida.
     real*8 , intent(in) :: XC(0:2)
     integer, intent(in) :: Z_A
-    !real*8 , intent(in) :: VEL_INICIAL
     real*8 , intent(in) :: ATOM_RADIUS
+    real*8 , intent(in) :: VEL_INICIAL
     real*8 , intent(inout) :: X(0:2)
 !f2py intent(in,out) :: X
     real*8 , intent(inout) :: V(0:2)
 !f2py intent(in,out) :: V
+    real*8 , intent(out) :: norma_v
     ! Constantes
     real*8 , parameter  :: ALPHA_MASS   = 6.645e-27_dp!_dpr         ! [ kg ]
     real*8 , parameter  :: UNIT_CHARGE  = 1.6021e-19_dp!_dpr        !-19 [ C ]
@@ -236,20 +237,19 @@ subroutine MetodoNumerico(X,XC,V,Z_A,ATOM_RADIUS,metrica_num_pasos,metrica_num_i
     real*8  :: Carga_atomo , Carga_alpha
     real*8  :: dt , distancia
     real*8  :: var_a,var_phi
-    !real*8  :: norma
-    !real*8  :: multiplicador
+    real*8  :: multiplicador
     ! Más vectores.
     real*8  :: A(0:2)
-    !real*8  :: V_ZERO(0:2) = (/0.0_dp , 0.0_dp , 0.0_dp/)
+    real*8  :: V_ZERO(0:2) = (/0.0_dp , 0.0_dp , 0.0_dp/)
 
     Radio_interaccion  = 0.75*ATOM_RADIUS
     Radio_interaccion2 = Radio_interaccion**2
     call distancia2(X,XC,distancia)
 
     ! EXPERIMENTAL : ABSORCION DE ENERGÍA.
-    !call distancia2(V,V_ZERO,norma)
-    !norma = sqrt(norma)
-    !multiplicador = VEL_INICIAL / norma
+    call distancia2(V,V_ZERO,norma_v)
+    norma_v = sqrt(norma_v)
+    multiplicador = VEL_INICIAL / norma_v
 
     if (distancia >=  Radio_interaccion2) then
         call EspacioInteratomico(X,V,ATOM_RADIUS)
@@ -264,7 +264,7 @@ subroutine MetodoNumerico(X,XC,V,Z_A,ATOM_RADIUS,metrica_num_pasos,metrica_num_i
         distancia = sqrt(distancia)
         do while(distancia < Radio_interaccion)
             ! Método de verlet con velocidades explicitas.
-            dt = distancia*2.5e-09_dp!*multiplicador ! El paso temporal es proporcional a la distancia del atómo con la que está interactuando.
+            dt = distancia*2.5e-09_dp*multiplicador ! El paso temporal es proporcional a la distancia del atómo con la que está interactuando.
             var_phi = var_a / distancia**3
             A = var_phi*(X-XC)
             ! Actualizamos posición
@@ -276,13 +276,14 @@ subroutine MetodoNumerico(X,XC,V,Z_A,ATOM_RADIUS,metrica_num_pasos,metrica_num_i
             V  = V  + 0.5*dt*(A + var_phi*(X-XC))
             metrica_num_pasos =  metrica_num_pasos + 1
         end do
-        !V = V*0.998
+        V = V*0.9999
         ! Termina la subrutina cuando la partícula alfa sale del radio de interacción con el átomo.
     end if
 end subroutine 
 
 subroutine Simulacion(N,CATEGORIA,Z_A,NUM_LAMINAS,ATOM_RADIUS,DIAMETRO_CELDA,&
-                      VEL_INICIAL,MAX_DESLOCACION,metrica_num_desviadas,FILE_NAME,verbose)
+                      VEL_INICIAL,MAX_DESLOCACION,metrica_num_desviadas,&
+                      metrica_num_detenidas,metrica_num_rebotadas,FILE_NAME,verbose)
     ! Ejecuta Toda la simulación de una sola partícula.
 
     INTEGER , PARAMETER  :: dp = SELECTED_REAL_KIND(15)
@@ -298,8 +299,6 @@ subroutine Simulacion(N,CATEGORIA,Z_A,NUM_LAMINAS,ATOM_RADIUS,DIAMETRO_CELDA,&
     ! Otros Inputs
     logical , intent(in) :: verbose
     Character(len=40) , intent(in) :: FILE_NAME
-    ! Outputs
-    integer, intent(out) :: metrica_num_desviadas
     ! Matrices
     real*8 :: random(N,0:2)
     ! Vectores
@@ -309,14 +308,25 @@ subroutine Simulacion(N,CATEGORIA,Z_A,NUM_LAMINAS,ATOM_RADIUS,DIAMETRO_CELDA,&
     real*8  :: V_ZERO(0:2) = (/0.0_dp , 0.0_dp , 0.0_dp/)
     ! Variables
     real*8, parameter    :: DIAMETRO_RAYO  = 100e-10 ! Ancho del rayo de la fuente radioactiva. (Nos asegura variabilidad.)
-    integer              :: Atomos_Lamina  = 200     
-    integer :: metrica_num_pasos         = 0 
-    integer :: metrica_num_interacciones = 0
+    integer              :: Atomos_Lamina  = 200
+    ! Metricas
+    integer :: metrica_num_pasos
+    integer :: metrica_num_interacciones
+    integer , intent(out) :: metrica_num_detenidas
+    integer , intent(out) :: metrica_num_rebotadas
+    integer , intent(out) :: metrica_num_desviadas
+    ! Variables de estado (indica si pasó algun evento especial con la partícula)
+    logical :: estado_detenido
+    logical :: metrica_desviacion
     ! Otras variables
     real*8  :: ancho_capas
+    real*8  :: norma_v
     real*8  :: norma
     integer :: porcentaje
-    logical :: metrica_desviacion
+    ! iniciamos las metricas
+    metrica_num_detenidas = 0
+    metrica_num_rebotadas = 0
+    metrica_num_desviadas = 0
     ! Inicio de la simulación
     if (verbose)  print*, "Iniciando simulación ... "
     ! Paso 1: Calculamos variables, iniciamos archivo de datos.
@@ -325,9 +335,10 @@ subroutine Simulacion(N,CATEGORIA,Z_A,NUM_LAMINAS,ATOM_RADIUS,DIAMETRO_CELDA,&
     random = random*2 -1 ! Cambiamos dominio a (-1 , 1)
     porcentaje = N / 10
     ancho_capas = Atomos_Lamina*DIAMETRO_CELDA*NUM_LAMINAS
-    metrica_num_desviadas = 0
     ! Paso 2: Bucle para la simulación de cada partícula.
     do i=1,N
+        ! Reseteamos los parámetros de estado.
+        estado_detenido    = .False.
         metrica_desviacion = .FALSE.
         ! Inicializamos los parámetros iniciales
         X(0:2) = (/0.0_dp , 0.0_dp , 0.0_dp/)
@@ -341,13 +352,28 @@ subroutine Simulacion(N,CATEGORIA,Z_A,NUM_LAMINAS,ATOM_RADIUS,DIAMETRO_CELDA,&
             call NearestAtom(CATEGORIA,X,MAX_DESLOCACION,DIAMETRO_CELDA,POS_ATOMO)
             !Paso 2 : Interacción partícula alpha atomo
             call MetodoNumerico(X,POS_ATOMO,V,Z_A,ATOM_RADIUS,metrica_num_pasos,metrica_num_interacciones,&
-            metrica_desviacion)
+            metrica_desviacion,VEL_INICIAL,norma_v)
+
+            ! Acciones caundo la partícula sea detenida.
+            if (norma_v < 0.05*VEL_INICIAL) then
+                metrica_num_detenidas = metrica_num_detenidas + 1
+                estado_detenido = .True.
+                EXIT ! Rompemos el ciclo while.
+            end if
+
         end do
+
+        ! Saltamos ciclo si la partícula es detenida.
+        !if (estado_detenido .eqv. .True.) CYCLE
+
+        ! Contamos el número de rebote.
+        if (V(1) < 0) metrica_num_rebotadas = metrica_num_rebotadas + 1
+
         ! Normalizamos el vector de velocidad
         call distancia2(V,V_ZERO,norma)
         norma = sqrt(norma)
         V     = V / norma
-        ! Escribimos resultado. (Solo escribe el resultado de las partículas que no fueron desviadas)
+        ! Escribimos resultado. (Solo escribe el resultado de las partículas que fueron desviadas)
         if (metrica_desviacion .eqv. .TRUE.) then 
             write(1,*) V(0) , V(1) , V(2) , norma / VEL_INICIAL
             metrica_num_desviadas = metrica_num_desviadas + 1
@@ -378,17 +404,21 @@ end subroutine
 
 
 program main
-    integer :: N  = 3000
-    integer :: CATEGORIA = 1
+    integer :: N  = 10000
+    integer :: CATEGORIA = 3
     integer :: Z_A             = 79
-    real*8  :: NUM_LAMINAS     = 1
+    real*8  :: NUM_LAMINAS     = 10
     real*8  :: ATOM_RADIUS     = 1.44e-10
     real*8  :: DIAMETRO_CELDA  = 4.07e-10
     real*8  :: VEL_INICIAL     = 1.57e7
-    real*8  :: MAX_DESLOCACION = 0.8
+    real*8  :: MAX_DESLOCACION = 0.5
     integer :: metrica_num_desviadas
+    integer :: metrica_num_detenidas
+    integer :: metrica_num_rebotadas
     Character(len=40) :: FILE_NAME = "Prueba.txt"
     logical :: verbose = .TRUE.
     call Simulacion(N,CATEGORIA,Z_A,NUM_LAMINAS,ATOM_RADIUS,DIAMETRO_CELDA,VEL_INICIAL,&
-                    MAX_DESLOCACION,metrica_num_desviadas,FILE_NAME,verbose)
+                    MAX_DESLOCACION,metrica_num_desviadas,metrica_num_detenidas,metrica_num_rebotadas,FILE_NAME,verbose)
+    print*, "Paradas  :",metrica_num_detenidas
+    print*, "rebotadas:",metrica_num_rebotadas
 end program 

@@ -20,7 +20,7 @@ def SimulacionOneCPU(N        ,
                max_deslocacion,
                clave_proceso  ):
     
-    metrica_desviaciones = ExperimentoRutherfordFortran.simulacion(N,
+    metrica_desviaciones,metrica_num_detenidas,metrica_num_rebotadas = ExperimentoRutherfordFortran.simulacion(N,
                                                             categoria      ,
                                                             z_a            ,
                                                             num_laminas    ,
@@ -30,7 +30,7 @@ def SimulacionOneCPU(N        ,
                                                             max_deslocacion,
                                                             f"Resultado{clave_proceso}.txt", 
                                                             verbose=False)
-    return metrica_desviaciones
+    return metrica_desviaciones,metrica_num_detenidas,metrica_num_rebotadas
     
     
     
@@ -59,7 +59,7 @@ def ExperimentoNumerico(N,
     metrica = 0
     if cpus == 1:
         # Corremos en una sola cpu.
-        metrica_desviaciones = SimulacionOneCPU(N              ,
+        metrica_desviaciones,metrica_num_detenidas,metrica_num_rebotadas = SimulacionOneCPU(N              ,
                                                 categoria      ,
                                                 z_a            ,
                                                 num_laminas    ,
@@ -76,6 +76,8 @@ def ExperimentoNumerico(N,
         return Output
     else:
         # Repartimos el trabajo entre las cpus.
+
+
         tamaño_rebanada            = math.floor(N/cpus)
         processes = []
         for i in range(cpus):
@@ -92,7 +94,7 @@ def ExperimentoNumerico(N,
             process.start()
         for process in processes:
             process.join()
-            
+
         # Recopilamos los resultados.
         array_resultado = np.loadtxt(f"Resultado{0}.txt")
         for num_resultado in range(i):
